@@ -139,16 +139,20 @@ const Homepages = () => {
     const loadCourses = async () => {
       setLoadingCourses(true);
       try {
-        let courseData;
+        let courseData: ICourse[] = [];
+
         if (selectedCategory === "All") {
-          courseData = await fetchAllCourses();
+          const allCourses = await fetchAllCourses();
+          courseData = allCourses ?? [];
         } else {
           const category = categories.find((cat) => cat.name === selectedCategory);
-          courseData = category ? await fetchCoursesByCategory(category.id) : null;
+          if (category) {
+            const categoryCourses = await fetchCoursesByCategory(category.id);
+            courseData = categoryCourses ?? [];
+          }
         }
 
-        const coursesToDisplay = courseData? courseData : courseData || [];
-        setCourses(coursesToDisplay);
+        setCourses(courseData);
       } catch (error) {
         console.error("Failed to load courses:", error);
         setCourses([]);
@@ -156,9 +160,9 @@ const Homepages = () => {
         setLoadingCourses(false);
       }
     };
+
     loadCourses();
   }, [selectedCategory, categories]);
-
 
   return (
     <>
@@ -291,43 +295,47 @@ const Homepages = () => {
               {/* Courses Carousel */}
               {loadingCourses ? (
                 <p>Loading courses...</p>
-              ) : courses.length > 0 ? (
-                courses.length <= 4 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {courses.map((course) => (
-                      <UnpurchasedCard
-                        key={course.id}
-                        id={course.id}
-                        image={course.image ?? ''}
-                        title={course.title}
-                        authors={[course.instructors ?? "no one"]}
-                        rating={course.rating ?? 0}
-                        reviews={course.reviews ?? 0}
-                        price={course.courseprices?.[0]?.course_price ?? 0}
-                        status={course.status ?? "New"}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <Slider {...settings}>
-                    {courses.map((course) => (
-                      <UnpurchasedCard
-                        key={course.id}
-                        id={course.id}
-                        image={course.image ?? ''}
-                        title={course.title}
-                        authors={[course.instructors ?? "no one"]}
-                        rating={course.rating ?? 0}
-                        reviews={course.reviews ?? 0}
-                        price={course.courseprices?.[0]?.course_price ?? 0}
-                        status={course.status ?? "New"}
-                      />
-                    ))}
-                  </Slider>
-                )
-              ) : (
-                <p>No courses available in this category.</p>
-              )}
+              ) : // Update the UnpurchasedCard rendering part in the Courses section
+                  courses.length > 0 ? (
+                    courses.length <= 4 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {courses.map((course) => (
+                          <UnpurchasedCard
+                            key={course.id}
+                            id={course.id}
+                            image={course.image ?? ''}
+                            title={course.title}
+                            authors={course.instructor_name ? [course.instructor_name] : ["No instructor"]}
+                            rating={course.average_rating ?? 0}
+                            reviews={course.total_reviews ?? 0}
+                            price={course.courseprices?.[0]?.course_price ?? 0}
+                            status={course.status ?? "New"}
+                            is_saved={course.is_saved}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <Slider {...settings}>
+                        {courses.map((course) => (
+                          <UnpurchasedCard
+                            key={course.id}
+                            id={course.id}
+                            image={course.image ?? ''}
+                            title={course.title}
+                            authors={course.instructor_name ? [course.instructor_name] : ["No instructor"]}
+                            rating={course.average_rating ?? 0}
+                            reviews={course.total_reviews ?? 0}
+                            price={course.courseprices?.[0]?.course_price ?? 0}
+                            status={course.status ?? "New"}
+                            is_saved={course.is_saved}
+                          />
+                        ))}
+                      </Slider>
+                    )
+                  ) : (
+                    <p>No courses available in this category.</p>
+                  )
+                }
             </div>
           </section>
 

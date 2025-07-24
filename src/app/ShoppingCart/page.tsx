@@ -187,7 +187,7 @@ const ShoppingCart = () => {
 
   return (
     <Layout>
-      <div className="mx-auto pt-32 md:pt-44 mb-20 px-4 md:px-[120px]">
+      <div className="mx-auto pt-32 md:pt-10 mb-20 px-4 md:px-[120px]">
         <h1 className="text-2xl font-medium">SHOPPING CART ({cart.length})</h1>
 
         <div className="flex flex-col lg:flex-row lg:space-x-8">

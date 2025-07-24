@@ -70,13 +70,38 @@ export const registerInstructor = async (
 // User login
 export const loginUser = async (
   data: IUserLoginData
-): Promise<IUserResponse | null> => {
+): Promise<IUserResponse & { token?: string }> => {
   try {
-    const response = await post<IUserResponse>("/login", data);
+    const response = await post<IUserResponse & { token: string }>(
+      "/login",
+      data
+    );
+
+    if (response.token) {
+      localStorage.setItem("authToken", response.token);
+    }
+
     return response;
   } catch (error) {
     console.error("Login User API error:", error);
-    return null;
+
+    if (isApiError(error)) {
+      return {
+        status: false,
+        message: error.data?.message || error.message || "Login failed",
+        errors: error.data?.errors || {},
+        role: "",
+        token: undefined,
+      };
+    }
+
+    return {
+      status: false,
+      message: "Login failed",
+      errors: {},
+      role: "",
+      token: undefined,
+    };
   }
 };
 export const verifyEmail = async (

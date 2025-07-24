@@ -64,6 +64,7 @@ export interface IUserResponse {
   role: string;
   token?: string;
   errors?: Record<string, string[]>; // For validation errors
+  expires_at?: string;
 }
 
 export interface IUserCreateData {
@@ -125,6 +126,9 @@ export interface ICourse {
   students_count?: number;
   average_rating?: number;
   course_prices?: { course_price: number }[];
+  is_saved?: boolean;
+  instructor_name?:string;
+  total_reviews?:number;
 }
 
 export interface ICategory {
@@ -181,7 +185,17 @@ export interface ISection {
 export interface ICourseDetailsResponse {
   curriculum_id: number | null;
   profile_info: IProfileInfo;
-  course_info: ICourseInfo;
+  course_info: {
+    id: number;
+    title: string;
+    subtitle: string;
+    video: string;
+    image: string;
+    status: string;
+    instructor_id: number;
+    courseprices: { course_price: number }[]; // API format
+    description: string;
+  };
   curriculum_details: ISection[];
 }
 
