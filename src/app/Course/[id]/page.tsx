@@ -15,6 +15,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { BASE_URL } from "@/api/constants";
 import { FaCheckCircle, FaPlayCircle, FaClock, FaDownload } from "react-icons/fa";
+import { ILessonProgress } from "@/api/courses";
 
 const CourseDetailsPage = () => {
     const params = useParams();
@@ -175,6 +176,7 @@ const CourseDetailsPage = () => {
                         video.currentTime > video.duration - 5
                     ).then(updatedProgress => {
                         if (updatedProgress.status && updatedProgress.progress) {
+                            const progress = updatedProgress.progress as unknown as ILessonProgress;
                             setCourseProgress(prev => {
                                 if (!prev) return null;
 
@@ -183,10 +185,10 @@ const CourseDetailsPage = () => {
                                     lessons_progress: prev.lessons_progress.map(lp =>
                                         lp.lesson_id === activeLesson ? {
                                             ...lp,
-                                            current_watch_time: updatedProgress.progress.current_watch_time,
-                                            total_watch_time: updatedProgress.progress.total_watch_time,
-                                            watch_percentage: updatedProgress.watch_percentage || 0, // Add this line
-                                            is_completed: updatedProgress.progress.is_completed
+                                            current_watch_time: progress.current_watch_time,
+                                            total_watch_time: progress.total_watch_time,
+                                            watch_percentage: progress.watch_percentage || 0,
+                                            is_completed: progress.is_completed
                                         } : lp
                                     )
                                 };
@@ -205,7 +207,7 @@ const CourseDetailsPage = () => {
             if (hasEndedOnce.current) return; // prevent repeated execution
             hasEndedOnce.current = true;
 
-            clearTimeout(initialTimeout);
+            clearTimeout(initialTimeout ?? undefined);
             clearInterval(updateInterval);
 
             if (video.duration > 0 && activeLesson !== null) {

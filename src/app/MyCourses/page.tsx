@@ -15,9 +15,6 @@ interface CourseWithRating extends ICourse {
     hasRated?: boolean;
     rating?: number;
     review?: string;
-    instructor?: {
-        name: string;
-    };
     progress?: number;
 }
 
@@ -44,13 +41,25 @@ const MyCourses = () => {
             // Fetch student courses with rating data included
             const fetchedCourses = await fetchStudentCourses();
             if (fetchedCourses) {
-                setCourses(
-                    fetchedCourses.map((course) => ({
+                const normalizedCourses = fetchedCourses.map((course) => {
+                    // Normalize instructor format
+                    let instructor;
+                    if (course.instructor) {
+                        instructor = typeof course.instructor === 'string'
+                            ? { name: course.instructor }
+                            : course.instructor;
+                    }
+
+                    return {
                         ...course,
                         userRating: course.rating || 0,
                         hasRated: course.rating !== undefined && course.rating !== null,
-                    }))
-                );
+                        instructor,
+                        progress: course.progress || 0
+                    };
+                });
+
+                setCourses(normalizedCourses);
             }
         } catch (error) {
             console.error("Error loading data:", error);
@@ -199,7 +208,7 @@ const MyCourses = () => {
                                     id={course.id}
                                     image={course.thumbnail}
                                     title={course.title}
-                                    authors={course.instructor ? [{ name: course.instructor.name }] : []}
+                                    authors={course.instructor || "Unknown Instructor"}
                                     rating={course.userRating || 0}
                                     progress={course.progress || 0}
                                     onRateCourse={handleRateCourse}

@@ -10,7 +10,7 @@ interface PurchasedCardProps {
   id: number;
   image: string | null;
   title: string;
-  authors: { name: string }; // Changed from authors to match your data structure
+  authors: { name: string } | string | Array<{ name: string }>;
   rating: number | string; // Your API returns rating as string
   progress: number;
   total_lessons?: number;
@@ -42,6 +42,12 @@ const PurchasedCard = ({
   // Calculate progress if not provided directly
   const calculatedProgress = progress ||
     (total_lessons && completed_lessons ? Math.round((completed_lessons / total_lessons) * 100) : 0);
+
+  const getAuthorName = () => {
+    if (typeof authors === 'string') return authors;
+    if (Array.isArray(authors)) return authors[0]?.name || "Unknown Instructor";
+    return authors?.name || "Unknown Instructor";
+  };
 
   const handleStarClick = () => {
     if (hasRated) {
@@ -79,7 +85,7 @@ const PurchasedCard = ({
 
       <div className="p-4">
         <h3 className="text-base font-semibold">{title}</h3>
-        <p className="text-xs text-gray-500">By: {authors?.name || "Unknown Instructor"}</p>
+        <p className="text-xs text-gray-500">By: {getAuthorName()}</p>
 
         <div className="flex items-center mt-2 relative">
           <div

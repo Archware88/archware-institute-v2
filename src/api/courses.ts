@@ -145,6 +145,8 @@ export interface ILessonProgress {
   total_watch_time: number;
   is_completed: boolean;
   watch_percentage: number;
+  section_id?: number;
+  title?: string;
 }
 
 export interface ICourseProgress {
@@ -153,6 +155,7 @@ export interface ICourseProgress {
   completed_lessons: number;
   total_watch_time: number;
   lessons_progress: ILessonProgress[];
+  section_progress?: ISectionProgress[];
 }
 
 // Add these new API functions
@@ -171,14 +174,14 @@ export interface ICourseDetails extends ICourseDetailsResponse {
   }>;
 }
 
-export interface ILessonProgress {
-  lesson_id: number;
-  section_id: number;
-  current_watch_time: number;
-  total_watch_time: number;
-  is_completed: boolean;
-  title?: string;
-}
+// export interface ILessonProgress {
+//   lesson_id: number;
+//   section_id: number;
+//   current_watch_time: number;
+//   total_watch_time: number;
+//   is_completed: boolean;
+//   title?: string;
+// }
 
 export interface ISectionProgress {
   section_id: number;
