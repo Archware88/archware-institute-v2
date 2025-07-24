@@ -1,259 +1,252 @@
-"use client";
-import UnpurchasedCard from "@/components/Essentials/UnpurchasedCard";
+"use client"
+
+import { useState, useEffect } from "react";
+import { FaSearch } from "react-icons/fa";
 import PurchasedCard from "@/components/Essentials/PurchasedCards";
 import UserNavbar from "@/components/GeneralComponents/UserNavbar";
-import Slider from "react-slick";
-import "slick-carousel/slick/slick.css";
-import "slick-carousel/slick/slick-theme.css";
-import { ICourse } from "@/types/types";
-import {
-  fetchStudentCourses,
-  fetchPopularCourses,
-  fetchTrendingCourses,
-} from "@/api/courses";
-import { useEffect, useState } from "react";
-import AuthLayout from "@/components/GeneralComponents/AuthLayout";
-import Image from "next/image";
+import { fetchCategories, fetchStudentCourses } from "@/api/courses";
+import { rateCourse } from "@/api/ratings";
+import { ICourse, ICategory } from "@/types/types";
+import Layout from "@/components/GeneralComponents/GeneralLayout";
 import SkeletonLoader from "@/components/GeneralComponents/SkeletonLoader";
-import Link from "next/link";
 
-const CourseListing = () => {
-  const [purchasedCourses, setPurchasedCourses] = useState<ICourse[]>([]);
-  const [popularCourses, setPopularCourses] = useState<ICourse[]>([]);
-  const [trendingCourses, setTrendingCourses] = useState<ICourse[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [loadingPopular, setLoadingPopular] = useState<boolean>(true);
-  const [loadingTrending, setLoadingTrending] = useState<boolean>(true);
-  const [isDesktop, setIsDesktop] = useState(false);
+// First, update your ICourse interface to allow both string and object instructors
+interface ExtendedICourse extends ICourse {
+  instructor?: string | { name: string };
+}
 
-  useEffect(() => {
-    const handleResize = () => {
-      setIsDesktop(window.innerWidth >= 1024);
-    };
+interface CourseWithRating extends ExtendedICourse {
+  userRating?: number;
+  hasRated?: boolean;
+  rating?: number;
+  review?: string;
+  progress?: number;
+}
 
-    // Set initial value
-    handleResize();
+const MyCourses = () => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState("Ongoing");
+  const [categoryFilter, setCategoryFilter] = useState("All Categories");
+  const [categories, setCategories] = useState<ICategory[]>([]);
+  const [courses, setCourses] = useState<CourseWithRating[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-    // Add event listener
-    window.addEventListener('resize', handleResize);
+  const loadCourses = async () => {
+    setLoading(true);
+    setError(null);
 
-    // Clean up
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  useEffect(() => {
-    const loadCourses = async () => {
-      setLoading(true);
-      const courses = await fetchStudentCourses();
-      if (courses !== null) {
-        setPurchasedCourses(courses);
+    try {
+      // Fetch categories
+      const fetchedCategories = await fetchCategories();
+      if (fetchedCategories) {
+        setCategories([{ id: 0, name: "All Categories" }, ...fetchedCategories]);
       }
+
+      // Fetch student courses with rating data included
+      const fetchedCourses = await fetchStudentCourses();
+      if (fetchedCourses) {
+        const normalizedCourses = fetchedCourses.map((course) => {
+          // Convert instructor to object format if it's a string
+          let instructor;
+          if (course.instructor) {
+            instructor = typeof course.instructor === 'string'
+              ? { name: course.instructor }
+              : course.instructor;
+          }
+
+          return {
+            ...course,
+            userRating: course.rating || 0,
+            hasRated: course.rating !== undefined && course.rating !== null,
+            instructor,
+            progress: course.progress || 0
+          } as CourseWithRating; // Explicit type assertion
+        });
+
+        setCourses(normalizedCourses);
+      }
+    } catch (error) {
+      console.error("Error loading data:", error);
+      setError("Failed to load courses. Please try again later.");
+    } finally {
       setLoading(false);
-    };
-
-    const loadPopularCourses = async () => {
-      setLoadingPopular(true);
-      const courses = await fetchPopularCourses();
-      if (courses !== null) {
-        setPopularCourses(courses);
-      }
-      setLoadingPopular(false);
-    };
-
-    const loadTrendingCourses = async () => {
-      setLoadingTrending(true);
-      const courses = await fetchTrendingCourses();
-      if (courses !== null) {
-        setTrendingCourses(courses);
-      }
-      setLoadingTrending(false);
-    };
-
-    loadCourses();
-    loadPopularCourses();
-    loadTrendingCourses();
-  }, []);
-
-  const sliderSettings = {
-    dots: false,
-    infinite: false,
-    speed: 500,
-    slidesToShow: 4,
-    slidesToScroll: 1,
-    arrows: true,
-    responsive: [
-      {
-        breakpoint: 1024,
-        settings: { slidesToShow: 3.2 },
-      },
-      {
-        breakpoint: 768,
-        settings: { slidesToShow: 2.2, slidesToScroll: 1 },
-      },
-      {
-        breakpoint: 640,
-        settings: { slidesToShow: 1.2, slidesToScroll: 1 },
-      },
-    ],
-  };
-
-  const renderCourses = (courses: ICourse[], isPurchased: boolean = false) => {
-    const filteredCourses = isPurchased
-      ? courses
-      : courses.filter(course => course.price !== undefined);
-    if (isDesktop && filteredCourses.length >= 4) {
-      return (
-        <Slider {...sliderSettings} className="mt-4">
-          {courses.map((course, index) => (
-            <div key={index} className="p-2">
-              {isPurchased ? (
-                <PurchasedCard
-                  id={course.id}
-                  image={course.thumbnail || null}
-                  authors={Array.isArray(course.authors) ? course.authors : [course.authors ?? ""]}
-                  rating={course.rating || 0}
-                  progress={course.progress}
-                  title={course.title}
-                // Add other needed props individually instead of using {...course}
-                />
-              ) : (
-                <UnpurchasedCard
-                  image={course.thumbnail || null}
-                  authors={[course.instructors ?? "no one"]}
-                  rating={0}
-                  reviews={0}
-                  status="New"
-                  {...course}
-                />
-              )}
-            </div>
-          ))}
-        </Slider>
-      );
-    } else {
-      return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-4">
-          {courses.map((course, index) => (
-            <div key={index} className="p-2">
-              {isPurchased ? (
-                <PurchasedCard
-                  id={course.id}
-                  image={course.thumbnail || null}
-                  authors={course.instructor || { name: "Unknown Instructor" }}
-                  rating={course.rating || 0}
-                  progress={course.progress}
-                  total_lessons={course.total_lessons}
-                  completed_lessons={course.completed_lessons}
-                  hasRated={course.hasRated || false} // You need to ensure this comes from your API
-                  onRateCourse={async (courseId, rating, review) => {
-                    // Implement your actual rating submission API call here
-                    try {
-                      const response = await submitCourseRating(courseId, rating, review);
-                      return { success: true };
-                    } catch (error) {
-                      return { success: false, message: "Failed to submit rating" };
-                    }
-                  }}
-                />
-              ) : (
-                <UnpurchasedCard
-                  image={course.thumbnail || null}
-                  authors={[course.instructors ?? "no one"]}
-                  rating={0}
-                  reviews={0}
-                  status="New"
-                  {...course}
-                />
-              )}
-            </div>
-          ))}
-        </div>
-      );
     }
   };
 
+  useEffect(() => {
+    loadCourses();
+  }, []);
+
+  const handleCategoryChange = (category: string) => {
+    setCategoryFilter(category);
+  };
+
+  const handleRateCourse = async (courseId: number, rating: number, review?: string) => {
+    try {
+      // Optimistically update the UI
+      setCourses((prevCourses) =>
+        prevCourses.map((course) =>
+          course.id === courseId
+            ? {
+              ...course,
+              userRating: rating,
+              hasRated: true,
+              rating: rating,
+              review: review,
+            }
+            : course
+        )
+      );
+
+      const response = await rateCourse(courseId, rating, review);
+      if (!response.status) {
+        // Revert if failed
+        setCourses((prevCourses) =>
+          prevCourses.map((course) =>
+            course.id === courseId
+              ? {
+                ...course,
+                userRating: 0,
+                hasRated: false,
+                rating: undefined,
+                review: undefined,
+              }
+              : course
+          )
+        );
+        return { success: false, message: response.message || "Failed to update rating" };
+      }
+      return { success: true };
+    } catch (error) {
+      console.error("Error rating course:", error);
+      // Revert on error
+      setCourses((prevCourses) =>
+        prevCourses.map((course) =>
+          course.id === courseId
+            ? {
+              ...course,
+              userRating: 0,
+              hasRated: false,
+              rating: undefined,
+              review: undefined,
+            }
+            : course
+        )
+      );
+      return { success: false, message: "An error occurred while rating the course" };
+    }
+  };
+
+  const filteredCourses = courses
+    .filter((course) => course.title.toLowerCase().includes(searchTerm.toLowerCase()))
+    .filter((course) => categoryFilter === "All Categories" || course.category === categoryFilter);
+
+  const sortedCourses = [...filteredCourses].sort((a, b) => {
+    if (sortBy === "Completed") {
+      return (b.progress || 0) - (a.progress || 0);
+    } else {
+      return (a.progress || 0) - (b.progress || 0);
+    }
+  });
+
   return (
-    <AuthLayout>
-      <UserNavbar />
-      <div className="p-6 md:p-12 bg-gray-50">
-        {/* My Courses (Purchased) */}
-        <section className="mt-12">
-          {loading ? (
-            <div className="grid grid-cols-4 gap-4 mt-4">
-              {[...Array(4)].map((_, i) => (
-                <SkeletonLoader key={i} />
-              ))}
+    <Layout>
+      <div>
+        <UserNavbar />
+        <div className="lg:px-[120px] pt-32">
+          <h1 className="text-2xl font-bold mb-4">MY COURSES</h1>
+
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+              {error}
             </div>
-          ) : purchasedCourses?.length ? (
-            <div>
-              <h2 className="text-2xl text-[#1B09A2]">CONTINUE LEARNING</h2>
-              {renderCourses(purchasedCourses, true)}
+          )}
+
+          <div className="flex flex-col md:flex-row justify-between mb-6">
+            <div className="flex space-x-4">
+              <select
+                className="border bg-white border-gray-300 p-2 rounded-md"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+              >
+                <option value="Ongoing">Sort By: Ongoing</option>
+                <option value="Completed">Sort By: Completed</option>
+              </select>
+
+              <select
+                className="border bg-white border-gray-300 p-2 rounded-md"
+                value={categoryFilter}
+                onChange={(e) => handleCategoryChange(e.target.value)}
+              >
+                {categories.map((category) => (
+                  <option key={category.id} value={category.name}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
             </div>
-          ) : (
-            <div className="md:flex items-center bg-[#88D613] text-white p-6 md:p-12 rounded-lg">
-              <Image
-                src="/assets/images/undraw_learning_re_45gp.svg"
-                alt="Learning illustration"
-                className="md:w-1/3 h-60 bg-white rounded-lg w-full"
-                height={100}
-                width={100}
+
+            <div className="relative mt-4 md:mt-0">
+              <input
+                type="text"
+                placeholder="Search My Courses..."
+                className="border bg-white border-gray-300 rounded-lg pl-10 pr-4 py-2 w-72"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
-              <div className=" md:pl-12 md:pt-0 pt-6">
-                <h2 className="text-3xl font-bold">HEY CHAMP!</h2>
-                <p className="mt-2 text-lg">
-                  Join thousands of learners who are unlocking new careers and
-                  shaping their future.
-                </p>
-                <Link href="/AllCourses">
-                  <div className="mt-4 w-fit text-white py-2 px-6 rounded-lg font-semibold bg-[#1B09A2]">
-                    Browse Courses
-                  </div>
-                </Link>
-              </div>
+              <FaSearch className="absolute left-3 top-3 text-gray-400" />
             </div>
-          )}
-        </section>
+          </div>
 
-        {/* Trending Courses */}
-        <section className="mt-12">
-          <h2 className="text-2xl text-[#1B09A2] uppercase">
-            Trending Courses
-          </h2>
-          {loadingTrending ? (
-            <div className="grid grid-cols-4 gap-4 mt-4">
-              {[...Array(4)].map((_, i) => (
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {[...Array(8)].map((_, i) => (
                 <SkeletonLoader key={i} />
               ))}
             </div>
-          ) : trendingCourses?.length ? (
-            renderCourses(trendingCourses)
-          ) : (
-            <p className="text-center mt-4">
-              No trending courses available at the moment.
-            </p>
-          )}
-        </section>
+          ) : sortedCourses.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {sortedCourses.map((course) => {
+                // Ensure we're passing the correct author format
+                const author = course.instructor
+                  ? typeof course.instructor === 'string'
+                    ? course.instructor
+                    : course.instructor.name
+                  : "Unknown Instructor";
 
-        {/* Popular Courses */}
-        <section className="mt-12">
-          <h2 className="text-2xl text-[#1B09A2] uppercase">Popular Courses</h2>
-          {loadingPopular ? (
-            <div className="grid grid-cols-4 gap-4 mt-4">
-              {[...Array(4)].map((_, i) => (
-                <SkeletonLoader key={i} />
-              ))}
+                return (
+                  <PurchasedCard
+                    key={course.id}
+                    id={course.id}
+                    image={course.thumbnail}
+                    title={course.title}
+                    authors={author}
+                    rating={course.userRating || 0}
+                    progress={course.progress || 0}
+                    onRateCourse={handleRateCourse}
+                    hasRated={course.hasRated || false}
+                  />
+                );
+              })}
             </div>
-          ) : popularCourses?.length ? (
-            renderCourses(popularCourses)
           ) : (
-            <p className="text-center mt-4">
-              No popular courses available at the moment.
-            </p>
+            <div className="text-center py-12">
+              <p className="text-gray-500 text-lg">No courses found matching your criteria.</p>
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm("")}
+                  className="mt-2 text-blue-500 hover:text-blue-700"
+                >
+                  Clear search
+                </button>
+              )}
+            </div>
           )}
-        </section>
+        </div>
       </div>
-    </AuthLayout>
+    </Layout>
   );
 };
 
-export default CourseListing;
+export default MyCourses;

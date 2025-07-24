@@ -127,8 +127,13 @@ export interface ICourse {
   average_rating?: number;
   course_prices?: { course_price: number }[];
   is_saved?: boolean;
-  instructor_name?:string;
-  total_reviews?:number;
+  instructor_name?: string;
+  total_reviews?: number;
+  progress?: number;
+  total_lessons?: number;
+  completed_lessons?: number;
+  hasRated?: boolean;
+  instructor?: string | { name: string };
 }
 
 export interface ICategory {
