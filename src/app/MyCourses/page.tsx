@@ -5,52 +5,136 @@ import { FaSearch } from "react-icons/fa";
 import PurchasedCard from "@/components/Essentials/PurchasedCards";
 import UserNavbar from "@/components/GeneralComponents/UserNavbar";
 import { fetchCategories, fetchStudentCourses } from "@/api/courses";
+import { rateCourse } from "@/api/ratings";
 import { ICourse, ICategory } from "@/types/types";
 import Layout from "@/components/GeneralComponents/GeneralLayout";
 import SkeletonLoader from "@/components/GeneralComponents/SkeletonLoader";
+
+interface CourseWithRating extends ICourse {
+    userRating?: number;
+    hasRated?: boolean;
+    rating?: number;
+    review?: string;
+    instructor?: {
+        name: string;
+    };
+    progress?: number;
+}
 
 const MyCourses = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [sortBy, setSortBy] = useState("Ongoing");
     const [categoryFilter, setCategoryFilter] = useState("All Categories");
     const [categories, setCategories] = useState<ICategory[]>([]);
-    const [courses, setCourses] = useState<ICourse[]>([]);
+    const [courses, setCourses] = useState<CourseWithRating[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    const loadCourses = async () => {
+        setLoading(true);
+        setError(null);
+
+        try {
+            // Fetch categories
+            const fetchedCategories = await fetchCategories();
+            if (fetchedCategories) {
+                setCategories([{ id: 0, name: "All Categories" }, ...fetchedCategories]);
+            }
+
+            // Fetch student courses with rating data included
+            const fetchedCourses = await fetchStudentCourses();
+            if (fetchedCourses) {
+                setCourses(
+                    fetchedCourses.map((course) => ({
+                        ...course,
+                        userRating: course.rating || 0,
+                        hasRated: course.rating !== undefined && course.rating !== null,
+                    }))
+                );
+            }
+        } catch (error) {
+            console.error("Error loading data:", error);
+            setError("Failed to load courses. Please try again later.");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const loadData = async () => {
-            setLoading(true);
-            try {
-                const fetchedCategories = await fetchCategories();
-                if (fetchedCategories) {
-                    setCategories([{ id: 0, name: "All Categories" }, ...fetchedCategories]);
-                }
-                const fetchedCourses = await fetchStudentCourses();
-                if (fetchedCourses) setCourses(fetchedCourses);
-
-            } catch (error) {
-                console.error("Error loading data:", error);
-            }
-            setLoading(false);
-        };
-
-        loadData();
+        loadCourses();
     }, []);
 
     const handleCategoryChange = (category: string) => {
         setCategoryFilter(category);
-        // Since we're showing only student's purchased courses,
-        // we'll filter the already fetched courses by category client-side
+    };
+
+    const handleRateCourse = async (courseId: number, rating: number, review?: string) => {
+        try {
+            // Optimistically update the UI
+            setCourses((prevCourses) =>
+                prevCourses.map((course) =>
+                    course.id === courseId
+                        ? {
+                            ...course,
+                            userRating: rating,
+                            hasRated: true,
+                            rating: rating,
+                            review: review,
+                        }
+                        : course
+                )
+            );
+
+            const response = await rateCourse(courseId, rating, review);
+            if (!response.status) {
+                // Revert if failed
+                setCourses((prevCourses) =>
+                    prevCourses.map((course) =>
+                        course.id === courseId
+                            ? {
+                                ...course,
+                                userRating: 0,
+                                hasRated: false,
+                                rating: undefined,
+                                review: undefined,
+                            }
+                            : course
+                    )
+                );
+                return { success: false, message: response.message || "Failed to update rating" };
+            }
+            return { success: true };
+        } catch (error) {
+            console.error("Error rating course:", error);
+            // Revert on error
+            setCourses((prevCourses) =>
+                prevCourses.map((course) =>
+                    course.id === courseId
+                        ? {
+                            ...course,
+                            userRating: 0,
+                            hasRated: false,
+                            rating: undefined,
+                            review: undefined,
+                        }
+                        : course
+                )
+            );
+            return { success: false, message: "An error occurred while rating the course" };
+        }
     };
 
     const filteredCourses = courses
-        .filter((course) =>
-            course.title.toLowerCase().includes(searchTerm.toLowerCase())
-        )
-        .filter((course) =>
-            categoryFilter === "All Categories" ||
-            course.category === categoryFilter
-        );
+        .filter((course) => course.title.toLowerCase().includes(searchTerm.toLowerCase()))
+        .filter((course) => categoryFilter === "All Categories" || course.category === categoryFilter);
+
+    const sortedCourses = [...filteredCourses].sort((a, b) => {
+        if (sortBy === "Completed") {
+            return (b.progress || 0) - (a.progress || 0);
+        } else {
+            return (a.progress || 0) - (b.progress || 0);
+        }
+    });
 
     return (
         <Layout>
@@ -59,7 +143,12 @@ const MyCourses = () => {
                 <div className="lg:px-[120px] pt-32">
                     <h1 className="text-2xl font-bold mb-4">MY COURSES</h1>
 
-                    {/* Sort & Filter Controls */}
+                    {error && (
+                        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                            {error}
+                        </div>
+                    )}
+
                     <div className="flex flex-col md:flex-row justify-between mb-6">
                         <div className="flex space-x-4">
                             <select
@@ -84,7 +173,6 @@ const MyCourses = () => {
                             </select>
                         </div>
 
-                        {/* Search Bar */}
                         <div className="relative mt-4 md:mt-0">
                             <input
                                 type="text"
@@ -97,28 +185,40 @@ const MyCourses = () => {
                         </div>
                     </div>
 
-                    {/* Courses Grid */}
                     {loading ? (
-                        <div className="grid grid-cols-4 gap-4 mt-4">
-                            {[...Array(4)].map((_, i) => (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                            {[...Array(8)].map((_, i) => (
                                 <SkeletonLoader key={i} />
                             ))}
                         </div>
-                    ) : filteredCourses.length > 0 ? (
+                    ) : sortedCourses.length > 0 ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                            {filteredCourses.map((course) => (
+                            {sortedCourses.map((course) => (
                                 <PurchasedCard
-                                    image={course.thumbnail}
-                                    authors={[]}
-                                    rating={0}
-                                    progress={0}
                                     key={course.id}
-                                    {...course}
+                                    id={course.id}
+                                    image={course.thumbnail}
+                                    title={course.title}
+                                    authors={course.instructor ? [{ name: course.instructor.name }] : []}
+                                    rating={course.userRating || 0}
+                                    progress={course.progress || 0}
+                                    onRateCourse={handleRateCourse}
+                                    hasRated={course.hasRated || false}
                                 />
                             ))}
                         </div>
                     ) : (
-                        <p className="text-center text-gray-500">No courses found.</p>
+                        <div className="text-center py-12">
+                            <p className="text-gray-500 text-lg">No courses found matching your criteria.</p>
+                            {searchTerm && (
+                                <button
+                                    onClick={() => setSearchTerm("")}
+                                    className="mt-2 text-blue-500 hover:text-blue-700"
+                                >
+                                    Clear search
+                                </button>
+                            )}
+                        </div>
                     )}
                 </div>
             </div>

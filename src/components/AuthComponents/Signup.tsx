@@ -177,8 +177,8 @@ const SignupModal = ({ onClose, onSwitchToLogin, onSignupSuccess }: {
               <input type="checkbox" className="w-4 h-4 cusor-pointer" required />
               <span className="text-sm text-gray-600">
                 By ticking this box, you agree to our{" "}
-                <a href="#" className="text-[#88D613]">Terms and Conditions</a> and{" "}
-                <a href="#" className="text-[#88D613]">Privacy Policy</a>.
+                <a href="/TermsAndConditions" className="text-[#88D613]">Terms and Conditions</a> and{" "}
+                <a href="/Privacy" className="text-[#88D613]">Privacy Policy</a>.
               </span>
             </div>
 

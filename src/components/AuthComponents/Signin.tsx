@@ -36,6 +36,7 @@ const LoginModal = ({ onClose, onSwitchToSignup }: { onClose: () => void; onSwit
       // Store token and role in localStorage
       localStorage.setItem("authToken", response.token ?? "");
       localStorage.setItem("userRole", response.role ?? "student");
+      localStorage.setItem("tokenExpiresAt", response.expires_at);
 
       try {
         let profileData;

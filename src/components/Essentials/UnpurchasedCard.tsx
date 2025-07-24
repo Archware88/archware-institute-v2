@@ -2,11 +2,10 @@ import { FiBookmark } from "react-icons/fi";
 import { FaBookmark } from "react-icons/fa";
 import Image from "next/image";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { addSavedItem, removeSavedItem, getSavedItems } from "@/api/savedItems";
-import { SavedItem } from "@/types/types";
+import { addSavedItem, removeSavedItem } from "@/api/savedItems";
 
 interface UnpurchasedCardProps {
   id: number;
@@ -15,8 +14,10 @@ interface UnpurchasedCardProps {
   authors: string[];
   rating: number;
   reviews: number;
-  price: number;
+  price?: number | null; // Make price explicitly optional and nullable
+  course_prices?: Array<{ course_price: number }>;
   status: "New" | "Best Seller" | "Top Rated" | "Top Teacher";
+  is_saved?: boolean;
 }
 
 const UnpurchasedCard = ({
@@ -27,25 +28,23 @@ const UnpurchasedCard = ({
   rating,
   reviews,
   price,
+  course_prices = [],
+  is_saved = false,
 }: UnpurchasedCardProps) => {
-  const [isSaved, setIsSaved] = useState(false);
+  const [isSaved, setIsSaved] = useState(is_saved);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Check if item is saved when component mounts
-  useEffect(() => {
-    const checkSavedStatus = async () => {
-      try {
-        const savedItems = await getSavedItems();
-        const saved = savedItems.some((item: SavedItem) => item.course_id === id);
-        setIsSaved(saved);
-      } catch (error) {
-        console.error("Error checking saved status:", error);
-      }
-    };
+  // Format price safely
 
-    checkSavedStatus();
-  }, [id]);
-
+  const actualPrice = price !== undefined && price !== null && price !== 0
+    ? price
+    : course_prices[0]?.course_price;
+  const formatPrice = () => {
+    if (actualPrice === undefined || actualPrice === null || actualPrice === 0) {
+      return "Free";
+    }
+    return `₦ ${actualPrice.toLocaleString()}`;
+  };
   const handleSaveClick = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -65,10 +64,7 @@ const UnpurchasedCard = ({
       }
     } catch (error: unknown) {
       console.error("Save error:", error);
-      toast.error(
-        // error.response?.data?.message ||
-        "You need to be logged in to save courses"
-      );
+      toast.error("You need to be logged in to save courses");
     } finally {
       setIsProcessing(false);
     }
@@ -111,7 +107,7 @@ const UnpurchasedCard = ({
 
           <div className="flex justify-between items-center mt-3">
             <span className="text-lg font-medium text-[#1B09A2]">
-              ₦ {price.toLocaleString()}
+              {formatPrice()}
             </span>
             <button
               onClick={handleSaveClick}

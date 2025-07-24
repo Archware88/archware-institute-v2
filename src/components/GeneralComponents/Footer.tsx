@@ -45,9 +45,9 @@ const Footer = () => {
                         {/* Our Company */}
                         <ul className="space-y-2 text-gray-800">
                             <h4 className="font-semibold text-[16px] mb-3">Our Company</h4>
-                            <li><a href="#" className="hover:underline text-[black] text-sm">All courses</a></li>
+                            <li><a href="/AllCourses" className="hover:underline text-[black] text-sm">All courses</a></li>
                             <li><a href="/Tutor/Home" className="hover:underline text-[black] text-sm">Become a tutor</a></li>
-                            <li><a href="#" className="hover:underline text-[black] text-sm">Contact Us</a></li>
+                            <li><a href="mailto:info@Archwaretechgroup.com" className="hover:underline text-[black] text-sm">Contact Us</a></li>
                         </ul>
                 
                         {/* Legal & Accessibility */}
@@ -61,9 +61,9 @@ const Footer = () => {
                         {/* Our Socials */}
                         <ul className="space-y-2 text-gray-800 ">
                             <h4 className="font-semibold text-[16px] mb-3">Our Socials</h4>
-                            <li><a href="#" className="hover:underline text-[black] text-sm">Twitter</a></li>
-                            <li><a href="#" className="hover:underline text-[black] text-sm">LinkedIn</a></li>
-                            <li><a href="#" className="hover:underline text-[black] text-sm">YouTube</a></li>
+                            <li><a href="https://www.linkedin.com/company/archware-technologies-ltd/" className="hover:underline text-[black] text-sm">Twitter</a></li>
+                            <li><a href="https://www.linkedin.com/company/archware-technologies-ltd/posts/?feedView=all" className="hover:underline text-[black] text-sm">LinkedIn</a></li>
+                            <li><a href="https://www.instagram.com/archwaretech?igsh=MWIzMTl5ZXI2OXVldA==" className="hover:underline text-[black] text-sm">Instagram</a></li>
                         </ul>
                     </div>
 

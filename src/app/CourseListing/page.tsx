@@ -98,18 +98,23 @@ const CourseListing = () => {
   };
 
   const renderCourses = (courses: ICourse[], isPurchased: boolean = false) => {
-    if (isDesktop && courses.length >= 4) {
+    const filteredCourses = isPurchased
+      ? courses
+      : courses.filter(course => course.price !== undefined);
+    if (isDesktop && filteredCourses.length >= 4) {
       return (
         <Slider {...sliderSettings} className="mt-4">
           {courses.map((course, index) => (
             <div key={index} className="p-2">
               {isPurchased ? (
                 <PurchasedCard
+                  id={course.id}
                   image={course.thumbnail || null}
                   authors={Array.isArray(course.authors) ? course.authors : [course.authors ?? ""]}
-                  rating={0}
-                  progress={0}
-                  {...course}
+                  rating={course.rating || 0}
+                  progress={course.progress}
+                  title={course.title}
+                // Add other needed props individually instead of using {...course}
                 />
               ) : (
                 <UnpurchasedCard
@@ -132,11 +137,23 @@ const CourseListing = () => {
             <div key={index} className="p-2">
               {isPurchased ? (
                 <PurchasedCard
+                  id={course.id}
                   image={course.thumbnail || null}
-                  authors={Array.isArray(course.authors) ? course.authors : [course.authors ?? ""]}
-                  rating={0}
-                  progress={0}
-                  {...course}
+                  authors={course.instructor || { name: "Unknown Instructor" }}
+                  rating={course.rating || 0}
+                  progress={course.progress}
+                  total_lessons={course.total_lessons}
+                  completed_lessons={course.completed_lessons}
+                  hasRated={course.hasRated || false} // You need to ensure this comes from your API
+                  onRateCourse={async (courseId, rating, review) => {
+                    // Implement your actual rating submission API call here
+                    try {
+                      const response = await submitCourseRating(courseId, rating, review);
+                      return { success: true };
+                    } catch (error) {
+                      return { success: false, message: "Failed to submit rating" };
+                    }
+                  }}
                 />
               ) : (
                 <UnpurchasedCard

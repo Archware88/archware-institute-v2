@@ -1,54 +1,40 @@
 "use client";
 import UnpurchasedCard from "@/components/Essentials/UnpurchasedCard";
-// import UserNavbar from "@/components/GeneralComponents/UserNavbar";
 import Slider from "react-slick";
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
 import { ICourse } from "@/types/types";
-import {
-  
-    fetchPopularCourses,
-    fetchTrendingCourses,
-} from "@/api/courses";
+import { fetchPopularCourses, fetchTrendingCourses } from "@/api/courses";
 import { useEffect, useState } from "react";
-// import AuthLayout from "@/components/GeneralComponents/AuthLayout";
 import Layout from "@/components/GeneralComponents/GeneralLayout";
 import SkeletonLoader from "@/components/GeneralComponents/SkeletonLoader";
 
 const CourseListing = () => {
-   
-    const [popularCourses, setPopularCourses] = useState<ICourse[] | null>(null);
-    const [trendingCourses, setTrendingCourses] = useState<ICourse[] | null>(
-        null
-    );
-
-    const [loadingPopular, setLoadingPopular] = useState<boolean>(true);
-    const [loadingTrending, setLoadingTrending] = useState<boolean>(true);
+    const [popularCourses, setPopularCourses] = useState<ICourse[]>([]);
+    const [trendingCourses, setTrendingCourses] = useState<ICourse[]>([]);
+    const [loading, setLoading] = useState({
+        popular: true,
+        trending: true
+    });
 
     useEffect(() => {
-        // const loadCourses = async () => {
-        //     setLoading(true);
-        //     const courses = await fetchStudentCourses();
-        //     setPurchasedCourses(courses);
-        //     setLoading(false);
-        // };
+        const loadCourses = async () => {
+            try {
+                const [popular, trending] = await Promise.all([
+                    fetchPopularCourses(),
+                    fetchTrendingCourses()
+                ]);
 
-        const loadPopularCourses = async () => {
-            setLoadingPopular(true);
-            const courses = await fetchPopularCourses();
-            setPopularCourses(courses);
-            setLoadingPopular(false);
+                setPopularCourses(popular ?? []);
+                setTrendingCourses(trending ?? []);
+            } catch (error) {
+                console.error("Error loading courses:", error);
+            } finally {
+                setLoading({ popular: false, trending: false });
+            }
         };
 
-        const loadTrendingCourses = async () => {
-            setLoadingTrending(true);
-            const courses = await fetchTrendingCourses();
-            setTrendingCourses(courses);
-            setLoadingTrending(false);
-        };
-
-        loadPopularCourses();
-        loadTrendingCourses();
+        loadCourses();
     }, []);
 
     const sliderSettings = {
@@ -61,82 +47,93 @@ const CourseListing = () => {
         responsive: [
             {
                 breakpoint: 1024,
-                settings: { slidesToShow: 3.2 },
+                settings: { slidesToShow: 3 }
             },
             {
                 breakpoint: 768,
-                settings: { slidesToShow: 2.2, slidesToScroll: 1 },
+                settings: { slidesToShow: 2 }
             },
-        ],
+            {
+                breakpoint: 480,
+                settings: { slidesToShow: 1 }
+            }
+        ]
     };
+
+    const getCoursePrice = (course: ICourse): number => {
+        return course.course_prices?.[0]?.course_price ||
+            course.courseprices?.[0]?.course_price ||
+            course.price || 0;
+    };
+
+    const getInstructorName = (course: ICourse): string[] => {
+        if (course.instructors) return [course.instructors];
+        if (course.authors && course.authors.length > 0) return course.authors;
+        return ['Unknown Instructor'];
+    };
+
+    const renderCourseCard = (course: ICourse) => (
+        <UnpurchasedCard
+            key={course.id}
+            id={course.id}
+            image={course.image || course.thumbnail || '/default-course.jpg'}
+            title={course.title}
+            authors={getInstructorName(course)}
+            rating={course.rating || course.average_rating || 0}
+            reviews={course.reviews || 0}
+            price={getCoursePrice(course)}
+            status={course.status || "New"}
+            is_saved={course.is_saved || false}
+        />
+    );
+
+    const renderSkeletons = (count: number) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {Array.from({ length: count }).map((_, idx) => (
+                <SkeletonLoader key={idx} />
+            ))}
+        </div>
+    );
 
     return (
         <Layout>
-            {/* <UserNavbar /> */}
             <div className="p-6 md:p-12 bg-gray-50">
-                {/* My Courses (Purchased) */}
-               
-
                 {/* Trending Courses */}
-                <section className="mt-12">
-                    <h2 className="text-2xl text-[#1B09A2] uppercase">
-                        Trending Courses
-                    </h2>
-                    {loadingTrending ? (
-                        <div className="grid grid-cols-4 gap-4 mt-4">
-                            {[...Array(4)].map((_, i) => (
-                                <SkeletonLoader key={i} />
-                            ))}
-                        </div>
-                    ) : trendingCourses?.length ? (
-                        <Slider {...sliderSettings} className="mt-4">
-                            {trendingCourses.map((course, index) => (
-                                <div key={index} className="p-2">
-                                    <UnpurchasedCard
-                                        image={course.thumbnail}
-                                        authors={[]}
-                                        rating={0}
-                                        reviews={0}
-                                        status="New"
-                                        {...course}
-                                    />
+                <section className="mb-12">
+                    <h2 className="text-2xl text-[#1B09A2] uppercase mb-6">Trending Courses</h2>
+                    {loading.trending ? (
+                        renderSkeletons(4)
+                    ) : trendingCourses.length > 0 ? (
+                        <Slider {...sliderSettings} className="px-2">
+                            {trendingCourses.map(course => (
+                                <div key={course.id} className="px-2">
+                                    {renderCourseCard(course)}
                                 </div>
                             ))}
                         </Slider>
                     ) : (
-                        <p className="text-center mt-4">
-                            No trending courses available at the moment.
+                        <p className="text-center py-8 text-gray-500">
+                            No trending courses found
                         </p>
                     )}
                 </section>
 
                 {/* Popular Courses */}
-                <section className="mt-12">
+                <section className="mb-12">
                     <h2 className="text-2xl text-[#1B09A2] uppercase">Popular Courses</h2>
-                    {loadingPopular ? (
-                        <div className="grid grid-cols-4 gap-4 mt-4">
-                            {[...Array(4)].map((_, i) => (
-                                <SkeletonLoader key={i} />
-                            ))}
-                        </div>
-                    ) : popularCourses?.length ? (
-                        <Slider {...sliderSettings} className="mt-4">
-                            {popularCourses.map((course, index) => (
-                                <div key={index} className="p-2">
-                                    <UnpurchasedCard
-                                        image={course.thumbnail}
-                                        authors={[]}
-                                        rating={0}
-                                        reviews={0}
-                                        status="New"
-                                        {...course}
-                                    />
+                    {loading.popular ? (
+                        renderSkeletons(4)
+                    ) : popularCourses.length > 0 ? (
+                        <Slider {...sliderSettings} className="px-2">
+                            {popularCourses.map(course => (
+                                <div key={course.id} className="px-2">
+                                    {renderCourseCard(course)}
                                 </div>
                             ))}
                         </Slider>
                     ) : (
-                        <p className="text-center mt-4">
-                            No popular courses available at the moment.
+                        <p className="text-center py-8 text-gray-500">
+                            No popular courses found
                         </p>
                     )}
                 </section>
