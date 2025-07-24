@@ -18,11 +18,11 @@ export const rateCourse = async (
       review: review || "",
     });
     return response;
-  } catch (error: any) {
-    console.error("Rate Course API error:", error);
+  } catch {
+    console.error("Rate Course API error:");
     return {
       status: false,
-      message: error.response?.data?.message || "Failed to rate course",
+      message: "Failed to rate course",
     };
   }
 };
@@ -33,11 +33,11 @@ export const getUserRating = async (
   try {
     const response = await get<RatingResponse>(`/get-user-rating/${courseId}`);
     return response;
-  } catch (error: any) {
-    console.error("Get User Rating API error:", error);
+  } catch {
+    console.error("Get User Rating API error:");
     return {
       status: false,
-      message: error.response?.data?.message || "Failed to fetch rating",
+      message: "Failed to fetch rating",
     };
   }
 };
