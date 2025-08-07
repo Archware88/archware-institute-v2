@@ -26,35 +26,19 @@ const Navbar = () => {
         localStorage.removeItem("auth-storage");
     };
 
-    const isPublicRoute = publicRoutes.includes(pathname);
-
     const checkAuthStatus = () => {
-        if (isPublicRoute) {
-            setIsAuthenticated(false);
-            return false;
-        }
-
         const token = localStorage.getItem("authToken");
         const expiresAt = localStorage.getItem("tokenExpiresAt");
 
-        if (!token) {
+        if (!token || !expiresAt) {
             clearAuthData();
             setIsAuthenticated(false);
-            router.push("/");
-            return false;
-        }
-
-        if (!expiresAt) {
-            clearAuthData();
-            setIsAuthenticated(false);
-            router.push("/");
             return false;
         }
 
         if (new Date(expiresAt) < new Date()) {
             clearAuthData();
             setIsAuthenticated(false);
-            router.push("/");
             return false;
         }
 
@@ -62,16 +46,21 @@ const Navbar = () => {
         return true;
     };
 
-    useEffect(() => {
-        checkAuthStatus();
+    const validateAndRedirect = () => {
+        const isPublic = publicRoutes.includes(pathname);
+        const isAuthValid = checkAuthStatus();
 
-        const interval = setInterval(checkAuthStatus, 60000);
+        if (!isPublic && !isAuthValid) {
+            router.push("/");
+        }
+    };
+
+    useEffect(() => {
+        validateAndRedirect();
+
+        const interval = setInterval(validateAndRedirect, 60000);
         return () => clearInterval(interval);
     }, [router, pathname]);
-
-    if (isPublicRoute) {
-        return <GuestNavbar />;
-    }
 
     return isAuthenticated ? <UserNavbar /> : <GuestNavbar />;
 };

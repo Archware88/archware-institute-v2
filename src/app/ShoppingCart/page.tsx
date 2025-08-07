@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
-import UserNavbar from "@/components/GeneralComponents/UserNavbar";
+import { useRouter } from "next/navigation";
 import {
   getCartItems,
   removeFromCart,
@@ -10,11 +10,14 @@ import {
   getSavedItems,
   removeFromSavedItems,
   moveSavedItemsToCart,
+  clearCartAfterPayment,
 } from "@/api/cart";
 import { ICartItem, ICourse, ISavedItem } from "@/types/types";
 import Layout from "@/components/GeneralComponents/GeneralLayout";
+import { initializePaystackPayment, verifyPaystackPayment, handlePaystackCallback } from "@/api/payment";
 
 const ShoppingCart = () => {
+  const router = useRouter();
   const [cart, setCart] = useState<ICourse[]>([]);
   const [savedItems, setSavedItems] = useState<ISavedItem[]>([]);
   const [voucher, setVoucher] = useState("");
@@ -22,6 +25,13 @@ const ShoppingCart = () => {
   const [error, setError] = useState<string | null>(null);
   const [addingToCart, setAddingToCart] = useState<number | null>(null);
   const [movingAllToCart, setMovingAllToCart] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState<{
+    status: "idle" | "success" | "failed";
+    message: string;
+  }>({ status: "idle", message: "" });
+
+  const paystackWindowRef = useRef<Window | null>(null);
 
   // Fetch both cart and saved items
   useEffect(() => {
@@ -29,6 +39,26 @@ const ShoppingCart = () => {
       try {
         setInitialLoading(true);
         setError(null);
+
+        // Handle payment callback if returning from Paystack
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('reference') || urlParams.has('payment_status')) {
+          const callbackResult = await handlePaystackCallback();
+          if (callbackResult.status) {
+            setPaymentStatus({
+              status: "success",
+              message: "Payment successful! Updating your cart...",
+            });
+            await clearLocalCart();
+          } else {
+            setPaymentStatus({
+              status: "failed",
+              message: callbackResult.message || "Payment verification failed",
+            });
+          }
+          // Clean URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
 
         // Fetch both cart and saved items in parallel
         const [cartItems, savedItemsData] = await Promise.all([
@@ -108,6 +138,21 @@ const ShoppingCart = () => {
     }
   };
 
+  const clearLocalCart = async () => {
+    try {
+      // Clear frontend state immediately
+      setCart([]);
+
+      // Clear backend cart via API
+      await clearCartAfterPayment(cart.map(course => course.id));
+
+      // Refresh data from server
+      await refreshData();
+    } catch (error) {
+      console.error("Failed to clear cart:", error);
+    }
+  };
+
   const handleRemoveFromCart = async (id: number) => {
     try {
       const success = await removeFromCart(id);
@@ -117,6 +162,103 @@ const ShoppingCart = () => {
     } catch (err) {
       setError("Failed to remove item from cart");
       console.error(err);
+    }
+  };
+
+  const handleProceedToCheckout = async () => {
+    if (cart.length === 0) return;
+
+    setIsProcessingPayment(true);
+    setPaymentStatus({ status: "idle", message: "" });
+
+    try {
+      const courseIds = cart.map(course => course.id);
+      const amount = totalPrice;
+      const userData = JSON.parse(localStorage.getItem("userData") || "{}");
+      const userEmail = userData?.email;
+
+      if (!userEmail) throw new Error("User email not found");
+
+      // Store current cart in session in case of page refresh
+      sessionStorage.setItem("pending_cart", JSON.stringify(cart));
+
+      // Initialize payment
+      const { authorization_url, reference } = await initializePaystackPayment(
+        amount,
+        courseIds,
+        userEmail
+      );
+
+      // Store reference and course IDs
+      sessionStorage.setItem("paystack_reference", reference);
+      sessionStorage.setItem("paystack_course_ids", JSON.stringify(courseIds));
+
+      // Mobile detection and handling
+      const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
+
+      if (isMobile) {
+        // For mobile devices, redirect in the same tab
+        window.location.href = authorization_url;
+        return;
+      }
+
+      // For desktop, open in new tab
+      paystackWindowRef.current = window.open(
+        authorization_url,
+        'paystackWindow',
+        'width=500,height=800'
+      );
+
+      if (!paystackWindowRef.current) {
+        throw new Error("Popup blocked - please allow popups for this site");
+      }
+
+      // Poll for payment completion
+      let attempts = 0;
+      const maxAttempts = 20; // ~1 minute
+      const pollInterval = setInterval(async () => {
+        attempts++;
+
+        try {
+          const verification = await verifyPaystackPayment(reference);
+
+          if (verification.data?.status === 'success') {
+            // Payment successful - clear cart
+            clearInterval(pollInterval);
+            await clearLocalCart();
+
+            // Close payment window if still open
+            if (paystackWindowRef.current && !paystackWindowRef.current.closed) {
+              paystackWindowRef.current.close();
+            }
+
+            setPaymentStatus({
+              status: "success",
+              message: "Payment successful! Loading your courses..."
+            });
+
+            // Redirect to success page
+             router.push('/Payment/Status?status=success');
+          } else if (attempts >= maxAttempts) {
+            throw new Error("Payment verification timed out");
+          }
+        } catch (error) {
+          clearInterval(pollInterval);
+          setPaymentStatus({
+            status: "failed",
+            message: error instanceof Error ? error.message : "Payment failed"
+          });
+        }
+      }, 3000);
+
+    } catch (error) {
+      console.error("Checkout error:", error);
+      setPaymentStatus({
+        status: "failed",
+        message: error instanceof Error ? error.message : "Payment failed"
+      });
+    } finally {
+      setIsProcessingPayment(false);
     }
   };
 
@@ -168,7 +310,6 @@ const ShoppingCart = () => {
   if (initialLoading) {
     return (
       <div className="mx-auto pt-32 md:pt-44 px-4 md:px-[120px]">
-        <UserNavbar />
         <div className="flex justify-center items-center h-64">
           <p>Loading...</p>
         </div>
@@ -179,7 +320,6 @@ const ShoppingCart = () => {
   if (error) {
     return (
       <div className="mx-auto pt-32 md:pt-44 px-4 md:px-[120px]">
-        <UserNavbar />
         <div className="text-red-500 p-4">{error}</div>
       </div>
     );
@@ -214,6 +354,9 @@ const ShoppingCart = () => {
               totalPrice={totalPrice}
               voucher={voucher}
               onVoucherChange={setVoucher}
+              isProcessingPayment={isProcessingPayment}
+              paymentStatus={paymentStatus}
+              onCheckout={handleProceedToCheckout}
             />
           )}
         </div>
@@ -366,10 +509,19 @@ const CheckoutSection = ({
   totalPrice,
   voucher,
   onVoucherChange,
+  isProcessingPayment,
+  paymentStatus,
+  onCheckout,
 }: {
   totalPrice: number;
   voucher: string;
   onVoucherChange: (value: string) => void;
+  isProcessingPayment: boolean;
+  paymentStatus: {
+    status: "idle" | "success" | "failed";
+    message: string;
+  };
+  onCheckout: () => void;
 }) => (
   <div className="mt-6 lg:mt-10 p-5 bg-white shadow-lg rounded-lg w-full lg:w-5/12">
     <div className="flex flex-col sm:flex-row justify-between items-center mb-3">
@@ -388,9 +540,24 @@ const CheckoutSection = ({
       <span>Price</span>
       <span>N {totalPrice.toLocaleString()}</span>
     </div>
-    <button className="w-full bg-[#1B09A2] text-white py-3 mt-4 rounded-md text-center cursor-pointer">
-      Proceed to Checkout
+    <button
+      onClick={onCheckout}
+      disabled={isProcessingPayment}
+      className={`w-full bg-[#1B09A2] text-white py-3 mt-4 rounded-md text-center ${isProcessingPayment ? "opacity-70 cursor-not-allowed" : "cursor-pointer"
+        }`}
+    >
+      {isProcessingPayment ? "Processing..." : "Proceed to Checkout"}
     </button>
+    {paymentStatus.status !== "idle" && (
+      <div
+        className={`mt-3 p-2 text-center rounded ${paymentStatus.status === "success"
+          ? "bg-green-100 text-green-700"
+          : "bg-red-100 text-red-700"
+          }`}
+      >
+        {paymentStatus.message}
+      </div>
+    )}
   </div>
 );
 

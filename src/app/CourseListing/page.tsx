@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { FaSearch } from "react-icons/fa";
 import PurchasedCard from "@/components/Essentials/PurchasedCards";
-import UserNavbar from "@/components/GeneralComponents/UserNavbar";
+// import UserNavbar from "@/components/GeneralComponents/UserNavbar";
 import { fetchCategories, fetchStudentCourses } from "@/api/courses";
 import { rateCourse } from "@/api/ratings";
 import { ICourse, ICategory } from "@/types/types";
@@ -153,7 +153,7 @@ const MyCourses = () => {
   return (
     <Layout>
       <div>
-        <UserNavbar />
+        {/* <UserNavbar /> */}
         <div className="lg:px-[120px] pt-32">
           <h1 className="text-2xl font-bold mb-4">MY COURSES</h1>
 

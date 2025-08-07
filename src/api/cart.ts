@@ -1,5 +1,6 @@
 import { get, post, del } from "./api";
 import { ICartItem, ICourse, ISavedItem } from "../types/types";
+import { API_URL } from "./constants";
 
 /*********************
  * CART API FUNCTIONS *
@@ -263,5 +264,57 @@ export const getSavedItemsCount = async (): Promise<number> => {
   } catch (error) {
     console.error("Get saved items count error:", error);
     return 0;
+  }
+};
+
+
+
+export const clearCart = async (): Promise<boolean> => {
+  try {
+    const response = await fetch(`${API_URL}/cart/clear`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to clear cart");
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Clear cart error:", error);
+    return false;
+  }
+};
+
+export const clearCartAfterPayment = async (
+  courseIds: number[]
+): Promise<boolean> => {
+  try {
+    const userData = JSON.parse(localStorage.getItem("userData") || "{}");
+    const response = await fetch(`${API_URL}/cart/clear-after-payment`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`,
+      },
+      body: JSON.stringify({
+        course_ids: courseIds.map((id) => Number(id)), // Ensure numbers
+        user_id: userData.id,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.status) {
+      throw new Error(data.message || "Failed to clear cart");
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Clear cart error:", error);
+    throw error;
   }
 };
