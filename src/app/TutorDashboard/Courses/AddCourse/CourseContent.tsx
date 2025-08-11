@@ -1,9 +1,11 @@
 "use client";
 import { useState } from "react";
-import { FiTrash, FiEdit, FiPlus, FiX } from "react-icons/fi";
+import { FiTrash, FiEdit, FiPlus, FiX, FiSave } from "react-icons/fi";
 import { AnimatePresence } from "framer-motion";
-import { createCourseCurriculum } from "@/api/course-setup";
 import { useSearchParams } from "next/navigation";
+import { toast } from "react-toastify";
+// import { BASE_URL } from "@/api/constants";
+import { createCourseCurriculum } from "@/api/course-setup";
 
 interface Lesson {
     id: string;
@@ -20,96 +22,142 @@ interface CourseModule {
     lessons: Lesson[];
 }
 
-const CourseContent = ({ nextStep }: { currentStep: number, nextStep: () => void, prevStep: () => void }) => {
+// interface CourseCurriculumResponse {
+//     status: boolean;
+//     message: string;
+//     curriculum_id?: number;
+//     section_id?: number;
+// }
+
+const CourseContent = ({ nextStep }: { nextStep: () => void }) => {
     const [courseModules, setCourseModules] = useState<CourseModule[]>([
         {
-            id: "1",
+            id: Date.now().toString(),
             title: "Module 1: Introduction",
             editing: false,
             lessons: [],
         },
     ]);
     const [isSaving, setIsSaving] = useState(false);
+    const [curriculumId, setCurriculumId] = useState<string | null>(null);
     const searchParams = useSearchParams();
     const courseId = searchParams.get('courseId');
 
-    const submitCurriculum = async (moduleToSave?: CourseModule) => {
+    // const createCourseCurriculum = async (formData: FormData): Promise<CourseCurriculumResponse | null> => {
+    //     try {
+    //         const response = await fetch(`${BASE_URL}/api/course-curriculum`, {
+    //             method: 'POST',
+    //             body: formData,
+    //         });
+    //         return await response.json();
+    //     } catch (error) {
+    //         console.error("Error creating course curriculum:", error);
+    //         return null;
+    //     }
+    // };
+
+    const submitModule = async (moduleToSave: CourseModule) => {
         if (!courseId) {
-            alert("Course ID is missing");
-            return;
+            toast.error("Course ID is missing");
+            return null;
         }
         setIsSaving(true);
 
         try {
-            const modulesToSave = moduleToSave ? [moduleToSave] : courseModules;
+            const formData = new FormData();
+            formData.append("course_id", courseId);
+            formData.append("section_name", moduleToSave.title.split(": ")[1] || moduleToSave.title);
 
-            for (const courseModule of modulesToSave) {
-                const formData = new FormData();
-                formData.append("course_id", courseId);
-                formData.append("course_section", courseModule.title);
+            if (curriculumId) {
+                formData.append("curriculum_id", curriculumId);
+            }
 
-                courseModule.lessons.forEach((lesson, index) => {
-                    formData.append(`course_lesson[${index}][title]`, lesson.title);
-                    if (lesson.note) {
-                        formData.append(`course_lesson[${index}][note]`, lesson.note);
-                    }
-
-                    if (lesson.contentType === "video" && lesson.content instanceof File) {
-                        formData.append(`course_lesson[${index}][video]`, lesson.content);
-                    }
-                    else if (lesson.contentType === "slides" && lesson.content instanceof File) {
-                        formData.append(`course_lesson[${index}][resource]`, lesson.content);
-                    }
-                    else if (lesson.contentType === "article" && typeof lesson.content === "string") {
-                        formData.append(`course_lesson[${index}][content]`, lesson.content);
-                    }
-                });
-
-                console.log("--- FormData Contents ---");
-                for (const [key, value] of formData.entries()) {
-                    console.log(key, value instanceof File ? `[File] ${value.name}` : value);
+            moduleToSave.lessons.forEach((lesson, index) => {
+                formData.append(`lessons[${index}][title]`, lesson.title);
+                if (lesson.note) {
+                    formData.append(`lessons[${index}][note]`, lesson.note);
                 }
 
-                const response = await createCourseCurriculum(formData);
-                console.log("API Response:", response);
+                if (lesson.contentType === "video" && lesson.content instanceof File) {
+                    formData.append(`lessons[${index}][video]`, lesson.content);
+                }
+                else if (lesson.contentType === "slides" && lesson.content instanceof File) {
+                    formData.append(`lessons[${index}][resource]`, lesson.content);
+                }
+                else if (lesson.contentType === "article" && typeof lesson.content === "string") {
+                    formData.append(`lessons[${index}][note]`, lesson.content);
+                }
+            });
+
+            const response = await createCourseCurriculum(formData);
+
+            if (response?.status) {
+                if (response.curriculum_id && !curriculumId) {
+                    setCurriculumId(response.curriculum_id.toString());
+                }
+                toast.success("Module saved successfully");
+                return response;
+            } else {
+                toast.error(response?.message || "Failed to save module");
+                return null;
             }
         } catch (error) {
             console.error("Error submitting curriculum:", error);
+            toast.error("An error occurred while saving");
+            return null;
         } finally {
             setIsSaving(false);
         }
     };
 
-    const canAddNewModule = () => {
-        if (courseModules.length === 0) return true;
+    const validateModule = (module: CourseModule): boolean => {
+        if (!module.title.trim()) {
+            toast.error("Module title is required");
+            return false;
+        }
 
-        const lastModule = courseModules[courseModules.length - 1];
-        return (
-            lastModule.title.trim() !== "" &&
-            lastModule.lessons.length > 0 &&
-            lastModule.lessons.every(lesson =>
-                lesson.title.trim() !== "" &&
-                (lesson.contentType !== null && (
-                    (lesson.contentType === "article" && typeof lesson.content === "string" && lesson.content.trim() !== "") ||
-                    (lesson.contentType !== "article" && lesson.content instanceof File)
-                ))
-            )
-        );
+        if (module.lessons.length === 0) {
+            toast.error("Module must have at least one lesson");
+            return false;
+        }
+
+        for (const lesson of module.lessons) {
+            if (!lesson.title.trim()) {
+                toast.error("All lessons must have a title");
+                return false;
+            }
+
+            if (!lesson.contentType) {
+                toast.error("All lessons must have a content type");
+                return false;
+            }
+
+            if (lesson.contentType === "article" && typeof lesson.content === "string" && !lesson.content.trim()) {
+                toast.error("Article content cannot be empty");
+                return false;
+            }
+
+            if ((lesson.contentType === "video" || lesson.contentType === "slides") && !(lesson.content instanceof File)) {
+                toast.error(`Please upload a ${lesson.contentType} file`);
+                return false;
+            }
+        }
+
+        return true;
     };
 
     const addModule = async () => {
-        if (courseModules.length > 0 && !canAddNewModule()) {
-            alert("Please complete the current module before adding a new one");
-            return;
-        }
-
         if (courseModules.length > 0) {
-            await submitCurriculum(courseModules[courseModules.length - 1]);
+            const lastModule = courseModules[courseModules.length - 1];
+            if (!validateModule(lastModule)) return;
+
+            const result = await submitModule(lastModule);
+            if (!result) return;
         }
 
         const newModule = {
             id: Date.now().toString(),
-            title: `Module ${courseModules.length + 1}: Untitled`,
+            title: `Module ${courseModules.length + 1}: New Module`,
             editing: false,
             lessons: [],
         };
@@ -117,293 +165,372 @@ const CourseContent = ({ nextStep }: { currentStep: number, nextStep: () => void
     };
 
     const removeModule = (id: string) => {
-        const updatedModules = courseModules.filter((courseModule) => courseModule.id !== id);
-        setCourseModules(updatedModules.map((m, i) => ({ ...m, title: `Module ${i + 1}: ${m.title.split(": ")[1]}` })));
+        if (courseModules.length <= 1) {
+            toast.error("You must have at least one module");
+            return;
+        }
+        setCourseModules(courseModules.filter(module => module.id !== id));
     };
 
     const toggleEdit = (id: string) => {
-        setCourseModules(
-            courseModules.map((courseModule) =>
-                courseModule.id === id ? { ...courseModule, editing: !courseModule.editing } : courseModule
-            )
-        );
+        setCourseModules(courseModules.map(module =>
+            module.id === id ? { ...module, editing: !module.editing } : module
+        ));
     };
 
     const updateTitle = (id: string, newTitle: string) => {
-        setCourseModules(
-            courseModules.map((courseModule) =>
-                courseModule.id === id ? { ...courseModule, title: newTitle } : courseModule
-            )
-        );
+        setCourseModules(courseModules.map(module =>
+            module.id === id ? { ...module, title: newTitle } : module
+        ));
     };
 
     const addLesson = (moduleId: string) => {
-        setCourseModules(
-            courseModules.map((courseModule) =>
-                courseModule.id === moduleId
-                    ? {
-                        ...courseModule,
-                        lessons: [
-                            ...courseModule.lessons,
-                            {
-                                id: Date.now().toString(),
-                                title: "",
-                                contentType: null,
-                                content: null,
-                                note: ""
-                            }
-                        ]
-                    }
-                    : courseModule
-            )
-        );
+        setCourseModules(courseModules.map(module =>
+            module.id === moduleId
+                ? {
+                    ...module,
+                    lessons: [
+                        ...module.lessons,
+                        {
+                            id: Date.now().toString(),
+                            title: "",
+                            contentType: null,
+                            content: null,
+                            note: ""
+                        }
+                    ]
+                }
+                : module
+        ));
     };
 
-    const setLessonContent = (moduleId: string, lessonId: string, type: "video" | "article" | "slides") => {
-        setCourseModules(
-            courseModules.map((courseModule) =>
-                courseModule.id === moduleId
-                    ? {
-                        ...courseModule,
-                        lessons: courseModule.lessons.map((lesson) =>
-                            lesson.id === lessonId ? { ...lesson, contentType: type, content: type === "article" ? "" : null } : lesson
-                        ),
-                    }
-                    : courseModule
-            )
-        );
+    const removeLesson = (moduleId: string, lessonId: string) => {
+        setCourseModules(courseModules.map(module =>
+            module.id === moduleId
+                ? {
+                    ...module,
+                    lessons: module.lessons.filter(lesson => lesson.id !== lessonId)
+                }
+                : module
+        ));
+    };
+
+    const setLessonContentType = (moduleId: string, lessonId: string, type: "video" | "article" | "slides") => {
+        setCourseModules(courseModules.map(module =>
+            module.id === moduleId
+                ? {
+                    ...module,
+                    lessons: module.lessons.map(lesson =>
+                        lesson.id === lessonId
+                            ? {
+                                ...lesson,
+                                contentType: type,
+                                content: type === "article" ? "" : null
+                            }
+                            : lesson
+                    )
+                }
+                : module
+        ));
     };
 
     const handleFileUpload = (moduleId: string, lessonId: string, file: File) => {
-        setCourseModules(
-            courseModules.map((courseModule) =>
-                courseModule.id === moduleId
-                    ? {
-                        ...courseModule,
-                        lessons: courseModule.lessons.map((lesson) =>
-                            lesson.id === lessonId ? { ...lesson, content: file } : lesson
-                        ),
-                    }
-                    : courseModule
-            )
-        );
+        setCourseModules(courseModules.map(module =>
+            module.id === moduleId
+                ? {
+                    ...module,
+                    lessons: module.lessons.map(lesson =>
+                        lesson.id === lessonId
+                            ? { ...lesson, content: file }
+                            : lesson
+                    )
+                }
+                : module
+        ));
     };
 
-    const updateLessonTitle = (moduleId: string, lessonId: string, title: string) => {
-        setCourseModules(
-            courseModules.map((courseModule) =>
-                courseModule.id === moduleId
-                    ? {
-                        ...courseModule,
-                        lessons: courseModule.lessons.map((lesson) =>
-                            lesson.id === lessonId ? { ...lesson, title } : lesson
-                        ),
-                    }
-                    : courseModule
-            )
-        );
+    const updateLessonField = (
+        moduleId: string,
+        lessonId: string,
+        field: "title" | "note" | "content",
+        value: string | File
+    ) => {
+        setCourseModules(courseModules.map(module =>
+            module.id === moduleId
+                ? {
+                    ...module,
+                    lessons: module.lessons.map(lesson =>
+                        lesson.id === lessonId
+                            ? { ...lesson, [field]: value }
+                            : lesson
+                    )
+                }
+                : module
+        ));
     };
 
-    const updateLessonNote = (moduleId: string, lessonId: string, note: string) => {
-        setCourseModules(
-            courseModules.map((courseModule) =>
-                courseModule.id === moduleId
-                    ? {
-                        ...courseModule,
-                        lessons: courseModule.lessons.map((lesson) =>
-                            lesson.id === lessonId ? { ...lesson, note } : lesson
-                        ),
-                    }
-                    : courseModule
-            )
-        );
-    };
+    const handleNext = async () => {
+        if (courseModules.length === 0) {
+            toast.error("Please add at least one module");
+            return;
+        }
 
-    const updateArticleContent = (moduleId: string, lessonId: string, content: string) => {
-        setCourseModules(
-            courseModules.map((courseModule) =>
-                courseModule.id === moduleId
-                    ? {
-                        ...courseModule,
-                        lessons: courseModule.lessons.map((lesson) =>
-                            lesson.id === lessonId ? { ...lesson, content } : lesson
-                        ),
-                    }
-                    : courseModule
-            )
-        );
-    };
+        const lastModule = courseModules[courseModules.length - 1];
+        if (!validateModule(lastModule)) return;
 
-    const removeLessonContent = (moduleId: string, lessonId: string) => {
-        setCourseModules(
-            courseModules.map((courseModule) =>
-                courseModule.id === moduleId
-                    ? {
-                        ...courseModule,
-                        lessons: courseModule.lessons.map((lesson) =>
-                            lesson.id === lessonId ? { ...lesson, contentType: null, content: null } : lesson
-                        ),
-                    }
-                    : courseModule
-            )
-        );
+        const result = await submitModule(lastModule);
+        if (result) {
+            nextStep();
+        }
     };
 
     return (
         <div className="p-6 bg-white rounded-lg shadow">
-            <h1 className="text-2xl font-bold mb-4">Course Content</h1>
+            <h1 className="text-2xl font-bold mb-6">Course Content</h1>
 
-            <div className="space-y-4">
+            {curriculumId && (
+                <div className="mb-4 px-4 py-2 bg-blue-50 text-blue-700 rounded-md inline-block text-sm">
+                    Curriculum ID: {curriculumId}
+                </div>
+            )}
+
+            <div className="space-y-6">
                 <AnimatePresence>
-                    {courseModules.map((courseModule) => (
-                        <div key={courseModule.id} className="border rounded p-4 bg-gray-100 flex flex-col">
-                            <div className="flex justify-between items-center">
-                                {courseModule.editing ? (
+                    {courseModules.map((module) => (
+                        <div key={module.id} className="border rounded-lg p-4 bg-gray-50">
+                            <div className="flex justify-between items-center mb-4">
+                                {module.editing ? (
                                     <input
                                         type="text"
-                                        value={courseModule.title}
-                                        onChange={(e) => updateTitle(courseModule.id, e.target.value)}
-                                        onBlur={() => toggleEdit(courseModule.id)}
+                                        value={module.title}
+                                        onChange={(e) => updateTitle(module.id, e.target.value)}
+                                        onBlur={() => toggleEdit(module.id)}
+                                        onKeyDown={(e) => e.key === "Enter" && toggleEdit(module.id)}
                                         autoFocus
-                                        className="border p-1 rounded w-full"
+                                        className="flex-1 border p-2 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                     />
                                 ) : (
-                                    <h2 className="font-semibold">{courseModule.title}</h2>
+                                    <h2 className="text-lg font-semibold">{module.title}</h2>
                                 )}
 
-                                <div className="flex items-center space-x-2">
-                                    <FiEdit className="text-gray-500 cursor-pointer" onClick={() => toggleEdit(courseModule.id)} />
-                                    <FiTrash className="text-red-500 cursor-pointer" onClick={() => removeModule(courseModule.id)} />
+                                <div className="flex space-x-2">
+                                    <button
+                                        onClick={() => toggleEdit(module.id)}
+                                        className="p-2 text-gray-600 hover:text-blue-600 transition-colors"
+                                        aria-label="Edit module title"
+                                    >
+                                        <FiEdit />
+                                    </button>
+                                    <button
+                                        onClick={() => removeModule(module.id)}
+                                        className="p-2 text-gray-600 hover:text-red-600 transition-colors"
+                                        aria-label="Remove module"
+                                        disabled={courseModules.length <= 1}
+                                    >
+                                        <FiTrash />
+                                    </button>
                                 </div>
                             </div>
 
-                            <div className="mt-3 flex space-x-4 text-blue-600 text-sm">
-                                <button onClick={() => addLesson(courseModule.id)} className="flex items-center cusor-pointer">
-                                    <FiPlus className="mr-1" /> Add Lesson
-                                </button>
-                            </div>
+                            <div className="space-y-4">
+                                {module.lessons.map((lesson) => (
+                                    <div key={lesson.id} className="border rounded-md p-4 bg-white">
+                                        <div className="space-y-3">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                    Lesson Title
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={lesson.title}
+                                                    onChange={(e) => updateLessonField(module.id, lesson.id, "title", e.target.value)}
+                                                    className="w-full border p-2 rounded-md"
+                                                    placeholder="Enter lesson title"
+                                                />
+                                            </div>
 
-                            {courseModule.lessons.map((lesson) => (
-                                <div key={lesson.id} className="mt-3 border p-3 rounded bg-white">
-                                    <label className="text-sm font-semibold">Lecture Title</label>
-                                    <input
-                                        type="text"
-                                        placeholder="Lecture Title Here"
-                                        className="border p-2 w-full mt-1 rounded"
-                                        value={lesson.title}
-                                        onChange={(e) => updateLessonTitle(courseModule.id, lesson.id, e.target.value)}
-                                        required
-                                    />
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                    Lesson Note (Optional)
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={lesson.note || ""}
+                                                    onChange={(e) => updateLessonField(module.id, lesson.id, "note", e.target.value)}
+                                                    className="w-full border p-2 rounded-md"
+                                                    placeholder="Short description"
+                                                />
+                                            </div>
 
-                                    <label className="text-sm font-semibold mt-3 block">Lecture Note</label>
-                                    <input
-                                        type="text"
-                                        placeholder="Short description"
-                                        className="border p-2 w-full mt-1 rounded"
-                                        value={lesson.note || ""}
-                                        onChange={(e) => updateLessonNote(courseModule.id, lesson.id, e.target.value)}
-                                    />
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                    Content Type
+                                                </label>
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    <button
+                                                        onClick={() => setLessonContentType(module.id, lesson.id, "video")}
+                                                        className={`p-2 rounded-md border transition-colors ${lesson.contentType === "video" ? "bg-blue-100 border-blue-500" : "hover:bg-gray-100"}`}
+                                                    >
+                                                        Video
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setLessonContentType(module.id, lesson.id, "article")}
+                                                        className={`p-2 rounded-md border transition-colors ${lesson.contentType === "article" ? "bg-blue-100 border-blue-500" : "hover:bg-gray-100"}`}
+                                                    >
+                                                        Article
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setLessonContentType(module.id, lesson.id, "slides")}
+                                                        className={`p-2 rounded-md border transition-colors ${lesson.contentType === "slides" ? "bg-blue-100 border-blue-500" : "hover:bg-gray-100"}`}
+                                                    >
+                                                        Slides
+                                                    </button>
+                                                </div>
+                                            </div>
 
-                                    <label className="text-sm font-semibold mt-3 block">Lecture Content</label>
-                                    <div className="flex space-x-4 mt-2">
-                                        <button
-                                            onClick={() => setLessonContent(courseModule.id, lesson.id, "video")}
-                                            className={`border p-2 rounded text-center cusor-pointer w-1/3 ${lesson.contentType === "video" ? "bg-blue-100" : ""}`}
-                                        >
-                                            Video
-                                        </button>
-                                        <button
-                                            onClick={() => setLessonContent(courseModule.id, lesson.id, "article")}
-                                            className={`border p-2 rounded text-center cusor-pointer w-1/3 ${lesson.contentType === "article" ? "bg-blue-100" : ""}`}
-                                        >
-                                            Article
-                                        </button>
-                                        <button
-                                            onClick={() => setLessonContent(courseModule.id, lesson.id, "slides")}
-                                            className={`border p-2 rounded text-center cusor-pointer w-1/3 ${lesson.contentType === "slides" ? "bg-blue-100" : ""}`}
-                                        >
-                                            Slides
-                                        </button>
+                                            {lesson.contentType === "video" && (
+                                                <div className="mt-2">
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                        Video File
+                                                    </label>
+                                                    <div className="border-2 border-dashed border-gray-300 rounded-md p-4 text-center">
+                                                        {lesson.content instanceof File ? (
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="truncate">{lesson.content.name}</span>
+                                                                <button
+                                                                    onClick={() => updateLessonField(module.id, lesson.id, "content", "")}
+                                                                    className="ml-2 text-red-500"
+                                                                >
+                                                                    <FiX />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <>
+                                                                <input
+                                                                    type="file"
+                                                                    accept="video/*"
+                                                                    onChange={(e) => {
+                                                                        if (e.target.files?.[0]) {
+                                                                            handleFileUpload(module.id, lesson.id, e.target.files[0]);
+                                                                        }
+                                                                    }}
+                                                                    className="hidden"
+                                                                    id={`video-upload-${lesson.id}`}
+                                                                />
+                                                                <label
+                                                                    htmlFor={`video-upload-${lesson.id}`}
+                                                                    className="cursor-pointer text-blue-600 hover:text-blue-800"
+                                                                >
+                                                                    Click to upload video (MP4, AVI, MOV)
+                                                                </label>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {lesson.contentType === "article" && (
+                                                <div className="mt-2">
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                        Article Content
+                                                    </label>
+                                                    <textarea
+                                                        value={typeof lesson.content === "string" ? lesson.content : ""}
+                                                        onChange={(e) => updateLessonField(module.id, lesson.id, "content", e.target.value)}
+                                                        className="w-full border p-2 rounded-md h-32"
+                                                        placeholder="Write your article content here..."
+                                                    />
+                                                </div>
+                                            )}
+
+                                            {lesson.contentType === "slides" && (
+                                                <div className="mt-2">
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                        Slides File
+                                                    </label>
+                                                    <div className="border-2 border-dashed border-gray-300 rounded-md p-4 text-center">
+                                                        {lesson.content instanceof File ? (
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="truncate">{lesson.content.name}</span>
+                                                                <button
+                                                                    onClick={() => updateLessonField(module.id, lesson.id, "content", "")}
+                                                                    className="ml-2 text-red-500"
+                                                                >
+                                                                    <FiX />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <>
+                                                                <input
+                                                                    type="file"
+                                                                    accept=".pdf,.ppt,.pptx"
+                                                                    onChange={(e) => {
+                                                                        if (e.target.files?.[0]) {
+                                                                            handleFileUpload(module.id, lesson.id, e.target.files[0]);
+                                                                        }
+                                                                    }}
+                                                                    className="hidden"
+                                                                    id={`slides-upload-${lesson.id}`}
+                                                                />
+                                                                <label
+                                                                    htmlFor={`slides-upload-${lesson.id}`}
+                                                                    className="cursor-pointer text-blue-600 hover:text-blue-800"
+                                                                >
+                                                                    Click to upload slides (PDF, PPT, PPTX)
+                                                                </label>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="flex justify-end">
+                                                <button
+                                                    onClick={() => removeLesson(module.id, lesson.id)}
+                                                    className="text-sm text-red-600 hover:text-red-800 flex items-center"
+                                                >
+                                                    <FiTrash className="mr-1" /> Remove Lesson
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
+                                ))}
+                            </div>
 
-                                    {lesson.contentType === "video" && (
-                                        <div className="border-dashed border-2 border-gray-400 p-4 mt-3 relative">
-                                            <input
-                                                type="file"
-                                                className="w-full"
-                                                accept="video/*"
-                                                onChange={(e) => {
-                                                    if (e.target.files && e.target.files[0]) {
-                                                        handleFileUpload(courseModule.id, lesson.id, e.target.files[0]);
-                                                    }
-                                                }}
-                                                required
-                                            />
-                                            <button onClick={() => removeLessonContent(courseModule.id, lesson.id)} className="absolute top-0 right-0 bg-red-500 text-white p-1 cusor-pointer rounded">
-                                                <FiX />
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    {lesson.contentType === "article" && (
-                                        <div className="mt-3">
-                                            <textarea
-                                                placeholder="Write your article here..."
-                                                className="border p-2 w-full rounded"
-                                                value={typeof lesson.content === "string" ? lesson.content : ""}
-                                                onChange={(e) => updateArticleContent(courseModule.id, lesson.id, e.target.value)}
-                                                required
-                                            ></textarea>
-                                            <button onClick={() => removeLessonContent(courseModule.id, lesson.id)} className="mt-2 bg-red-500 text-white p-1 cusor-pointer rounded">
-                                                Remove
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    {lesson.contentType === "slides" && (
-                                        <div className="border p-4 mt-3 relative">
-                                            <input
-                                                type="file"
-                                                accept=".ppt,.pptx,.pdf"
-                                                className="w-full"
-                                                onChange={(e) => {
-                                                    if (e.target.files && e.target.files[0]) {
-                                                        handleFileUpload(courseModule.id, lesson.id, e.target.files[0]);
-                                                    }
-                                                }}
-                                                required
-                                            />
-                                            <button onClick={() => removeLessonContent(courseModule.id, lesson.id)} className="absolute top-0 right-0 bg-red-500 text-white p-1 cusor-pointer rounded">
-                                                <FiX />
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
+                            <button
+                                onClick={() => addLesson(module.id)}
+                                className="mt-3 px-3 py-1 bg-blue-50 text-blue-600 rounded-md flex items-center text-sm hover:bg-blue-100 transition-colors"
+                            >
+                                <FiPlus className="mr-1" /> Add Lesson
+                            </button>
                         </div>
                     ))}
                 </AnimatePresence>
             </div>
 
-            <button
-                onClick={addModule}
-                disabled={isSaving}
-                className="mt-4 px-4 py-2 cusor-pointer bg-[#1B09A2] text-white rounded flex items-center disabled:opacity-50"
-            >
-                {isSaving ? "Saving..." : (
-                    <>
-                        <FiPlus className="mr-1" /> Add Module
-                    </>
-                )}
-            </button>
+            <div className="mt-6 flex justify-between">
+                <button
+                    onClick={addModule}
+                    disabled={isSaving}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                    <FiPlus className="mr-2" /> Add Module
+                </button>
 
-            <button
-                onClick={nextStep}
-                disabled={isSaving}
-                className="mt-4 ml-4 px-4 py-2 cusor-pointer bg-green-600 text-white rounded flex items-center disabled:opacity-50"
-            >
-                Next
-            </button>
+                <button
+                    onClick={handleNext}
+                    disabled={isSaving}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md flex items-center hover:bg-green-700 transition-colors disabled:opacity-50"
+                >
+                    {isSaving ? (
+                        <>
+                            <FiSave className="mr-2 animate-spin" /> Saving...
+                        </>
+                    ) : (
+                        "Save & Continue"
+                    )}
+                </button>
+            </div>
         </div>
     );
 };
