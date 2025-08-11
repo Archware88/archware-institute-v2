@@ -47,6 +47,7 @@ interface CourseCurriculumResponse {
   status: boolean;
   message: string;
   curriculum_id?: number;
+  section_id?: number;
 }
 
 export const createCourseCurriculum = async (
