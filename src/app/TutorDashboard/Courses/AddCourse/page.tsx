@@ -88,7 +88,7 @@ const AddCoursePage = () => {
           )}
           {currentStep === 2 && (
             <Suspense fallback={<div>Loading structure...</div>}>
-            <CourseContent currentStep={currentStep} nextStep={nextStep} prevStep={prevStep} />
+            <CourseContent  nextStep={nextStep} />
             </Suspense>
           )}
           {currentStep === 3 && (
