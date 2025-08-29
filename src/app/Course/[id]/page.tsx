@@ -216,8 +216,9 @@ const CourseDetailsPage = () => {
                     video.duration,
                     video.duration,
                     true
-                ).then(updatedProgress => {
-                    if (updatedProgress.status && updatedProgress.progress) {
+                ).then(async (updatedProgress) => {
+                    if (updatedProgress.status) {
+                        // Optimistically update the lesson progress locally
                         setCourseProgress(prev => {
                             if (!prev) return null;
 
@@ -229,13 +230,39 @@ const CourseDetailsPage = () => {
                                             ...lp,
                                             current_watch_time: video.duration,
                                             total_watch_time: lp.total_watch_time + (video.duration - lp.current_watch_time),
-                                            is_completed: true
+                                            is_completed: true,
+                                            watch_percentage: 100 // Ensure 100% if completed
                                         };
                                     }
                                     return lp;
                                 })
                             };
                         });
+
+                        // Refetch the entire course progress to get updated completion percentage
+                        try {
+                            const freshProgress = await fetchCourseProgress(courseId);
+                            setCourseProgress(freshProgress);
+                        } catch (error) {
+                            console.error("Failed to refresh course progress:", error);
+                            // Fallback: recalculate locally if API fails
+                            setCourseProgress(prev => {
+                                if (!prev || !courseDetails) return prev;
+
+                                const totalLessons = courseDetails.curriculum_details.reduce(
+                                    (sum, section) => sum + section.lesson.length, 0
+                                );
+                                const completedLessons = prev.lessons_progress.filter(
+                                    lp => lp.is_completed
+                                ).length;
+
+                                return {
+                                    ...prev,
+                                    completion_percentage: Math.round((completedLessons / totalLessons) * 100),
+                                    completed_lessons: completedLessons
+                                };
+                            });
+                        }
                     }
                 });
             }
