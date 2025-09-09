@@ -127,6 +127,13 @@ export const updateUserProfile = async (
   }
 };
 
+export const isAdmin = (): boolean => {
+  if (typeof window === "undefined") return false;
+
+  const role = localStorage.getItem("userRole");
+  return role === "admin";
+};
+
 export const logoutUser = async (): Promise<{
   success: boolean;
   message?: string;

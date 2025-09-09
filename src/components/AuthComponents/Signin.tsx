@@ -25,6 +25,7 @@ const LoginModal = ({ onClose, onSwitchToSignup }: { onClose: () => void; onSwit
       setMessage(errorMessage);
     }
   }, [searchParams]);
+  // Update the handleLogin function in your LoginModal
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
@@ -42,6 +43,14 @@ const LoginModal = ({ onClose, onSwitchToSignup }: { onClose: () => void; onSwit
         let profileData;
         if (response.role === "instructor") {
           profileData = await fetchInstructorInfo();
+        } else if (response.role === "admin") {
+          // For admin, we might not need to fetch additional profile info
+          profileData = {
+            firstname: "Admin",
+            lastname: "User",
+            email: email,
+            role: "admin"
+          };
         } else {
           profileData = await fetchProfileInfo();
         }
@@ -59,9 +68,11 @@ const LoginModal = ({ onClose, onSwitchToSignup }: { onClose: () => void; onSwit
       // Redirect user based on role
       setTimeout(() => {
         if (response.role === "instructor") {
-          router.push("/TutorDashboard/Courses"); // Redirect to instructor dashboard
+          router.push("/TutorDashboard/Courses");
+        } else if (response.role === "admin") {
+          router.push("/admin/dashboard"); // Redirect to admin dashboard
         } else {
-          router.push("/CourseListing"); // Redirect to student course listing
+          router.push("/CourseListing");
         }
       }, 1500);
     } else {
