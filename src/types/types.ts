@@ -133,7 +133,8 @@ export interface ICourse {
   total_lessons?: number;
   completed_lessons?: number;
   hasRated?: boolean;
-  instructor?: string | { name: string };
+  reviews_avg_rating?: number;
+  instructor?: string | { name: string; email: string};
 }
 
 export interface ICategory {

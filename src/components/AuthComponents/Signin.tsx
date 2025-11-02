@@ -70,7 +70,7 @@ const LoginModal = ({ onClose, onSwitchToSignup }: { onClose: () => void; onSwit
         if (response.role === "instructor") {
           router.push("/TutorDashboard/Courses");
         } else if (response.role === "admin") {
-          router.push("/admin/dashboard"); // Redirect to admin dashboard
+          router.push("/Admin/Dashboard"); // Redirect to admin dashboard
         } else {
           router.push("/CourseListing");
         }

@@ -54,7 +54,7 @@ const Topbar = () => {
             // Fallback cleanup if everything fails
             localStorage.clear();
             sessionStorage.clear();
-            router.push('/login');
+            router.push('/');
         }
     };
 
