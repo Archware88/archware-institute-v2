@@ -46,7 +46,7 @@ const MyCourses = () => {
                     let instructor;
                     if (course.instructor) {
                         instructor = typeof course.instructor === 'string'
-                            ? { name: course.instructor }
+                            ? { name: course.instructor, email: '' }
                             : course.instructor;
                     }
 

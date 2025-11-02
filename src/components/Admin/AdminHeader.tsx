@@ -10,7 +10,7 @@ const AdminHeader: React.FC = () => {
 
     const handleLogout = () => {
         logoutUser();
-        router.push("/login");
+        router.push("/");
     };
 
     return (

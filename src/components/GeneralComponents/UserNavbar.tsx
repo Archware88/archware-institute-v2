@@ -54,7 +54,7 @@ const UserNavbar = () => {
       console.error('Logout error:', error);
       localStorage.clear();
       sessionStorage.clear();
-      window.location.href = '/login';
+      window.location.href = '/';
     }
   };
   useEffect(() => {
@@ -108,7 +108,7 @@ const UserNavbar = () => {
           </div>
 
           <div className="flex items-center space-x-6">
-            <a href="#" className="text-gray-600 hover:text-blue-600">
+            <a href="/AllCourses" className="text-gray-600 hover:text-blue-600">
               Explore Categories
             </a>
             <a href="/Tutor/Home" className="text-gray-600 hover:text-blue-600">

@@ -11,8 +11,8 @@ import Layout from "@/components/GeneralComponents/GeneralLayout";
 import SkeletonLoader from "@/components/GeneralComponents/SkeletonLoader";
 
 // First, update your ICourse interface to allow both string and object instructors
-interface ExtendedICourse extends ICourse {
-  instructor?: string | { name: string };
+interface ExtendedICourse extends Omit<ICourse, 'instructor'> {
+  instructor?: string | { name: string; email?: string };
 }
 
 interface CourseWithRating extends ExtendedICourse {

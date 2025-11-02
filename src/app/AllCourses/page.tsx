@@ -20,13 +20,17 @@ const CourseListing = () => {
     useEffect(() => {
         const loadCourses = async () => {
             try {
-                const [popular, trending] = await Promise.all([
+                const [popularCoursesData, trendingCoursesData] = await Promise.all([
                     fetchPopularCourses(),
                     fetchTrendingCourses()
                 ]);
 
-                setPopularCourses(popular ?? []);
-                setTrendingCourses(trending ?? []);
+                console.log("Popular courses:", popularCoursesData);
+                console.log("Trending courses:", trendingCoursesData);
+
+                // The API functions already return the courses array or null
+                setPopularCourses(popularCoursesData || []);
+                setTrendingCourses(trendingCoursesData || []);
             } catch (error) {
                 console.error("Error loading courses:", error);
             } finally {
@@ -61,6 +65,10 @@ const CourseListing = () => {
     };
 
     const getCoursePrice = (course: ICourse): number => {
+        // Check if course has a price object with course_price property
+        if (course.price && typeof course.price === 'object' && 'course_price' in course.price) {
+            return (course.price as { course_price: number }).course_price;
+        }
         return course.course_prices?.[0]?.course_price ||
             course.courseprices?.[0]?.course_price ||
             course.price || 0;
@@ -69,18 +77,36 @@ const CourseListing = () => {
     const getInstructorName = (course: ICourse): string[] => {
         if (course.instructors) return [course.instructors];
         if (course.authors && course.authors.length > 0) return course.authors;
+        if (course.instructor) {
+            if (typeof course.instructor === 'string') return [course.instructor];
+            if (typeof course.instructor === 'object') {
+                return [course.instructor.name || course.instructor.email || 'Unknown Instructor'];
+            }
+        }
         return ['Unknown Instructor'];
+    };
+
+    const getCourseImage = (course: ICourse): string => {
+        return course.image || course.thumbnail || '/default-course.jpg';
+    };
+
+    const getRating = (course: ICourse): number => {
+        return course.rating || course.average_rating || course.reviews_avg_rating || 0;
+    };
+
+    const getReviewsCount = (course: ICourse): number => {
+        return course.reviews || course.students_count || 0;
     };
 
     const renderCourseCard = (course: ICourse) => (
         <UnpurchasedCard
             key={course.id}
             id={course.id}
-            image={course.image || course.thumbnail || '/default-course.jpg'}
+            image={getCourseImage(course)}
             title={course.title}
             authors={getInstructorName(course)}
-            rating={course.rating || course.average_rating || 0}
-            reviews={course.reviews || 0}
+            rating={getRating(course)}
+            reviews={getReviewsCount(course)}
             price={getCoursePrice(course)}
             status={course.status || "New"}
             is_saved={course.is_saved || false}
