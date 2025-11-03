@@ -102,26 +102,40 @@ const ShoppingCart = () => {
   };
 
   const formatSavedItems = (items: ISavedItem[]): ISavedItem[] => {
-    return items.map((item) => ({
-      id: item.id,
-      user_id: item.user_id,
-      course_id: item.course_id,
-      created_at: item.created_at,
-      updated_at: item.updated_at,
-      course: {
-        id: item.course?.id || item.course_id,
-        title: item.course?.title || "Untitled Course",
-        image: item.course?.image,
-        instructors: item.course?.instructors || "Unknown Instructor",
-        level: item.course?.level || "Beginner",
-        price: item.course?.course_prices?.[0]?.course_price || 234,
-        students_count: item.course?.students_count || 0,
-        average_rating: item.course?.average_rating || 0,
-        description: item.course?.description || "",
-        thumbnail: item.course?.thumbnail || "",
-        data: item.course?.data || "",
-      },
-    }));
+    return items.map((item) => {
+      // Handle both number and object price formats
+      let priceValue = 0;
+
+      if (item.course?.price) {
+        if (typeof item.course.price === 'number') {
+          priceValue = item.course.price;
+        } else if (typeof item.course.price === 'object' && item.course.price !== null) {
+          // Handle case where price is an object with course_price property
+          priceValue = (item.course.price as unknown as { course_price: number }).course_price || 0;
+        }
+      }
+
+      return {
+        id: item.id,
+        user_id: item.user_id,
+        course_id: item.course_id,
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+        course: {
+          id: item.course?.id || item.course_id,
+          title: item.course?.title || "Untitled Course",
+          image: item.course?.image,
+          instructors: item.course?.instructors || "Unknown Instructor",
+          level: item.course?.level || "Beginner",
+          price: priceValue, // Use the properly extracted price
+          students_count: item.course?.students_count || 0,
+          average_rating: item.course?.average_rating || 0,
+          description: item.course?.description || "",
+          thumbnail: item.course?.thumbnail || "",
+          data: item.course?.data || "",
+        },
+      };
+    });
   };
 
   const refreshData = async () => {
@@ -480,7 +494,7 @@ const SavedItem = ({
       </p>
       <div className="flex justify-between items-center pt-2">
         <p className="text-lg font-bold text-blue-600">
-          N {item.course.price?.toLocaleString() || "0"}
+          N {(typeof item.course.price === 'number' ? item.course.price : 0).toLocaleString()}
         </p>
         <div className="flex gap-2">
           <button
