@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getDashboardStats } from "@/api/adminservice";
-import { isAdmin } from "@/api/auth";
+import { isAdmin } from "../../../api/auth";
 
 interface DashboardStats {
     totalUsers: number;
