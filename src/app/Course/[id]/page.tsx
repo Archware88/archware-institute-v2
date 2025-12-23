@@ -7,7 +7,7 @@ import {
     updateLessonProgress,
     ICourseDetails,
     ICourseProgress,
-} from "@/api/courses";
+} from "../../../api/courses";
 import UserNavbar from "@/components/GeneralComponents/UserNavbar";
 import AuthLayout from "@/components/GeneralComponents/AuthLayout";
 import SkeletonLoader from "@/components/GeneralComponents/SkeletonLoader";

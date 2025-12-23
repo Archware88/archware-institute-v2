@@ -3,7 +3,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { isAdmin } from "@/api/auth";
+import { isAdmin } from "../../api/auth";
 
 export default function AdminPage() {
     const router = useRouter();
